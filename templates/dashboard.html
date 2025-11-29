@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Financial Overview</h1>
+    <div style="display: flex; gap: 0.5rem;">
+        <a href="{{ url_for('download_report') }}" class="btn"
+            style="background-color: var(--text-color); color: white;">
+            <i class="fa-solid fa-file-pdf"></i> Report
+        </a>
+        <a href="{{ url_for('add_transaction', type='income') }}" class="btn btn-primary">
+            <i class="fa-solid fa-plus"></i> Income
+        </a>
+        <a href="{{ url_for('add_transaction', type='expense') }}" class="btn btn-danger">
+            <i class="fa-solid fa-minus"></i> Expense
+        </a>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="card animate-bounce delay-100">
+        <div class="card-header">
+            <div class="card-icon icon-income">
+                <i class="fa-solid fa-arrow-trend-up"></i>
+            </div>
+            <div class="card-title">Total Income</div>
+        </div>
+        <div class="card-value income-value">₹ {{ "{:,.2f}".format(summary.total_income) }}</div>
+    </div>
+    <div class="card animate-bounce delay-200">
+        <div class="card-header">
+            <div class="card-icon icon-expense">
+                <i class="fa-solid fa-arrow-trend-down"></i>
+            </div>
+            <div class="card-title">Total Expense</div>
+        </div>
+        <div class="card-value expense-value">₹ {{ "{:,.2f}".format(summary.total_expense) }}</div>
+    </div>
+    <div class="card animate-bounce delay-300">
+        <div class="card-header">
+            <div class="card-icon icon-balance">
+                <i class="fa-solid fa-wallet"></i>
+            </div>
+            <div class="card-title">Balance</div>
+        </div>
+        <div class="card-value">₹ {{ "{:,.2f}".format(summary.balance) }}</div>
+    </div>
+</div>
+
+<!-- Assistant & Budget Section -->
+<div class="dashboard-grid" style="grid-template-columns: 2fr 1fr;">
+    <div class="card animate-fade-in delay-200 border-{{ suggestion_class }}"
+        style="background: linear-gradient(135deg, var(--card-bg), rgba(99, 102, 241, 0.05));">
+        <div class="card-header">
+            <i class="fa-solid fa-robot" style="color: var(--primary-color); font-size: 1.5rem;"></i>
+            <div class="card-title" style="color: var(--primary-color);">Budget Assistant</div>
+        </div>
+        <p style="font-size: 1.1rem; font-weight: 500;">{{ suggestion }}</p>
+    </div>
+
+    <div class="card animate-fade-in delay-300">
+        <div class="card-title">Monthly Limit</div>
+        <form action="{{ url_for('set_budget') }}" method="POST"
+            style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+            <input type="number" name="budget_limit" value="{{ summary.budget_limit }}" class="form-control"
+                style="padding: 0.5rem;" required>
+            <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1rem;">
+                <i class="fa-solid fa-save"></i>
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="dashboard-grid" style="grid-template-columns: 1fr 1fr;">
+    <div class="card animate-fade-in delay-200">
+        <div class="card-title">Spending by Category</div>
+        <div style="height: 300px; position: relative;">
+            <canvas id="pieChart" data-chart='{{ summary.category_breakdown | tojson }}'></canvas>
+        </div>
+    </div>
+    <div class="card animate-fade-in delay-300">
+        <div class="card-title">Monthly Trend</div>
+        <div style="height: 300px; position: relative;">
+            <canvas id="lineChart" data-chart='{{ summary.monthly_trend | tojson }}'></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Budget Usage Progress Bar -->
+{% set usage_percent = (summary.total_expense / summary.budget_limit * 100) if summary.budget_limit > 0 else 0 %}
+{% set bar_color = 'bg-success' %}
+{% if usage_percent > 80 %}
+{% set bar_color = 'bg-warning' %}
+{% endif %}
+{% if usage_percent > 100 %}
+{% set bar_color = 'bg-danger' %}
+{% endif %}
+{% set bar_width = 100 if usage_percent > 100 else usage_percent %}
+
+<div class="progress-container animate-fade-in delay-300">
+    <div class="progress-header">
+        <span>Budget Usage (Limit: ₹{{ "{:,.0f}".format(summary.budget_limit) }})</span>
+        <span>{{ "%.1f"|format(usage_percent) }}%</span>
+    </div>
+    <div class="progress-bar-bg">
+        <div class="progress-bar-fill {{ bar_color }}" style="width: {{ bar_width }}%;"></div>
+    </div>
+</div>
+
+<h2 style="margin: 2rem 0 1rem; font-weight: 700;">Recent Transactions</h2>
+<div class="table-container animate-fade-in delay-300">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Note</th>
+                <th>Type</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for transaction in summary.transactions %}
+            <tr>
+                <td>{{ transaction.date }}</td>
+                <td>
+                    {% if transaction.type == 'income' %}
+                    <i class="fa-solid fa-sack-dollar" style="color: var(--secondary-color); margin-right: 0.5rem;"></i>
+                    {% else %}
+                    <i class="fa-solid fa-receipt" style="color: var(--danger-color); margin-right: 0.5rem;"></i>
+                    {% endif %}
+                    {{ transaction.category }}
+                </td>
+                <td style="color: var(--text-muted);">{{ transaction.note }}</td>
+                <td>
+                    <span class="badge badge-{{ transaction.type }}">
+                        {{ transaction.type }}
+                    </span>
+                </td>
+                <td class="{{ transaction.type }}-value" style="font-weight: 600;">
+                    {% if transaction.type == 'income' %}+{% else %}-{% endif %}
+                    ₹ {{ "{:,.2f}".format(transaction.amount) }}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                    <i class="fa-solid fa-clipboard-list"
+                        style="font-size: 2rem; margin-bottom: 1rem; display: block; opacity: 0.5;"></i>
+                    No transactions yet. Start by adding one!
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Onboarding Modal -->
+<div id="onboardingModal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div class="card animate-bounce" style="max-width: 500px; text-align: center;">
+        <h2 style="margin-top: 0;">Welcome to BudgetBuddy! 🚀</h2>
+        <p style="color: var(--text-muted); margin-bottom: 2rem;">
+            Track your income and expenses with ease. View charts, download reports, and stay on top of your finances.
+        </p>
+        <button class="btn btn-primary" onclick="closeOnboarding()">Get Started</button>
+    </div>
+</div>
+{% endblock %}
